@@ -266,9 +266,9 @@ int main() {
 		double lane_2_rear_car_s=-100000;
 		
 		//find maximum lane speed
-		double lane_0_speed=49.5;
-		double lane_1_speed=49.5;
-		double lane_2_speed=49.5;
+		double lane_0_speed=48;
+		double lane_1_speed=48;
+		double lane_2_speed=48;
 		double lane_speed;
 		
 		//flag to indicate if given lane is free to enter
@@ -276,8 +276,8 @@ int main() {
 		bool lane_1_open = true;
 		bool lane_2_open = true;
 	
-		//parameters to determine how far forward and back is free to travel
-		double lane_forward_open_dist=10;
+		//parameters to determine how far forward and back is required to consider lane open
+		double lane_forward_open_dist=30;
 		double lane_rearward_open_dist=-10;
 
 		//determine which lane car is currently in
@@ -299,17 +299,23 @@ int main() {
 		{
 			//find location and speed of surrounding cars
 			float next_car_s = sensor_fusion[i][5];
+
+			//if we're at the begining or end of the track then adjust next car s value
 			if (next_car_s < 100 && car_s > max_s-100)
 			{
 				next_car_s += max_s;
+			}
+			else if (next_car_s > max_s-100 && car_s < 100)
+			{
+				next_car_s -= max_s;
 			}
 			float next_car_d = sensor_fusion[i][6];	
 			float vx = sensor_fusion[i][3];
 			float vy = sensor_fusion[i][4];
 			float speed = sqrt((vx*vx)+(vy*vy))*2.237;
-			float vehicle_spacing=abs(next_car_s-car_s);
+			float vehicle_spacing=(next_car_s-car_s);
 
-			//determine lane of next car
+			//determine lane of car in fusion data
 			int next_car_lane;
 			if(next_car_d>= 0 && next_car_d < 4)
 			{
@@ -334,10 +340,10 @@ int main() {
 			if(next_car_lane == 0 && next_car_s<lane_0_next_car_s && next_car_s>=car_s)
 			{		
 				lane_0_speed=speed;
-				lane_0_next_car_s=vehicle_spacing;
+				lane_0_next_car_s=next_car_s;
 				if (vehicle_spacing < lane_forward_open_dist)
 				{
-					lane_0_open = false;
+					lane_0_open = 0;
 				}
 			}
 			else if(next_car_lane == 0 && next_car_s>lane_0_rear_car_s && vehicle_spacing <= 0)
@@ -345,7 +351,7 @@ int main() {
 				lane_0_rear_car_s=next_car_s;
 				if (vehicle_spacing > lane_rearward_open_dist)
 				{
-					lane_0_open = false;
+					lane_0_open = 0;
 				}
 			}
 			else if(next_car_lane == 1 && next_car_s<lane_1_next_car_s && next_car_s>=car_s)
@@ -354,7 +360,7 @@ int main() {
 				lane_1_next_car_s=next_car_s;
 				if (vehicle_spacing < lane_forward_open_dist)
 				{
-					lane_1_open = false;
+					lane_1_open = 0;
 				}
 			}
 			else if(next_car_lane == 1 && next_car_s>lane_1_rear_car_s && vehicle_spacing <= 0)
@@ -362,7 +368,7 @@ int main() {
 				lane_1_rear_car_s=next_car_s;
 				if (vehicle_spacing > lane_rearward_open_dist)
 				{
-					lane_1_open = false;
+					lane_1_open = 0;
 				}
 			}
 			else if(next_car_lane == 2 && next_car_s<lane_2_next_car_s && next_car_s>=car_s)
@@ -371,24 +377,24 @@ int main() {
 				lane_2_next_car_s=next_car_s;
 				if (vehicle_spacing < lane_forward_open_dist)
 				{
-					lane_2_open = false;
+					lane_2_open = 0;
 				}
 			}
 			else if(next_car_lane == 2 && next_car_s>lane_2_rear_car_s && vehicle_spacing <= 0)
 			{
-				lane_2_next_car_s=next_car_s;
+				lane_2_rear_car_s=next_car_s;
 				if (vehicle_spacing > lane_rearward_open_dist)
 				{
-					lane_2_open = false;
+					lane_2_open = 0;
 				}
 			}
 next_iteration:;	
 		}
 
 		//match speed of car in front if too close otherwise drive just below speed limit
-		double lane_match_speed_dist=30;
+		double lane_match_speed_dist=lane_forward_open_dist;
 		bool current_lane_blocked;
-		if (current_lane == 0 && lane_0_next_car_s < lane_match_speed_dist)
+		if (current_lane == 0 && lane_0_next_car_s-car_s < lane_match_speed_dist)
 		{	
 			current_lane_blocked = true;
 			lane_speed=lane_0_speed;
@@ -406,36 +412,32 @@ next_iteration:;
 		else
 		{
 			current_lane_blocked = false;
-			lane_speed=49.5;
+			lane_speed=48;
 		}
 
 		//change lane decision makeing
-		
-		if (current_lane_blocked == 1 && lane_change_complete && ref_vel < 40)
+		//cout<<"Lane 0 next s: "<<lane_0_next_car_s<<" Lane 1 next s: "<<lane_1_next_car_s<<" Lane 2 next s: "<<lane_2_next_car_s<<endl;	
+		if (current_lane_blocked == 1 && lane_change_complete && ref_vel < 44)
 		{	
 			
-			if (current_lane == 0 && lane_1_open == 1)
+			if (current_lane == 0 && lane_1_open == 1 && lane_1_next_car_s-lane_0_next_car_s > 5)
 			{	
 				lane=1;
-				lane_change_complete = false;
 				lane_change_direction = true;
 			}	
-			else if(current_lane == 1 && lane_0_open==1 && lane_0_next_car_s > lane_2_next_car_s) 
+			else if(current_lane == 1 && lane_0_open==1 && lane_0_next_car_s > lane_2_next_car_s && lane_0_next_car_s - lane_1_next_car_s > 5) 
 			{
 				lane=0;
-				lane_change_complete = false;
 				lane_change_direction = false;
 			}
-			else if(current_lane == 1 && lane_2_open==1) 
+			else if(current_lane == 1 && lane_2_open==1 && lane_2_next_car_s > lane_0_next_car_s && lane_2_next_car_s - lane_1_next_car_s > 5) 
 			{
 				lane=2;
-				lane_change_complete = false;
 				lane_change_direction = true;
 			}
-			else if(current_lane == 2 && lane_1_open==1) 
+			else if(current_lane == 2 && lane_1_open==1 && lane_1_next_car_s - lane_2_next_car_s > 5) 
 			{	
 				lane=1;
-				lane_change_complete = false;
 				lane_change_direction = false;
 			}
 		}
@@ -447,18 +449,20 @@ next_iteration:;
 
 		if ( lane_pos != lane && !lane_change_direction)
 		{
-			lane_speed = 38;//lock speed while changing lane
-			if (ref_vel < 42)//only start changing lanes when vehicle speed is low enough
+			lane_speed = 30;//lock speed while changing lane
+			if (ref_vel < 33)//only start changing lanes when vehicle speed is low enough
 			{
 				lane_pos -=0.25;
+				lane_change_complete = false;
 			}
 		}
-		else if( lane_pos != lane && lane_change_direction && ref_vel <40)
+		else if( lane_pos != lane && lane_change_direction)
 		{
-			lane_speed = 38; //lock speed while changing lane
-			if (ref_vel < 42) //only start changing lanes when vehicle speed low enough
+			lane_speed = 30; //lock speed while changing lane
+			if (ref_vel < 33) //only start changing lanes when vehicle speed low enough
 			{
 				lane_pos += 0.25;
+				lane_change_complete = false;
 			}
 		}
 		//if previous size is almost empty use the car as starting reference
@@ -492,7 +496,8 @@ next_iteration:;
 		//in frenet add evenly spaced way points ahead of start reference
 		cout<<"Current Lane: "<<current_lane<<" Lane: "<<lane<<" Lane position: "<<lane_pos;
 		cout<<" Reference velocity: "<<ref_vel<<" Lane speed: "<<lane_speed;
-		cout<<" Lane 0 open: "<<lane_0_open<<" Lane 1 open: "<<lane_1_open<<" Lane 2 open: "<<lane_2_open<<endl;
+		cout<<" Lane 0 open: "<<lane_0_open<<" Lane 1 open: "<<lane_1_open<<" Lane 2 open: "<<lane_2_open;
+		cout<<" car s: "<<car_s<<endl;
 
 		vector<double> next_wp0 = getXY(car_s+30,(2+4*lane_pos),map_waypoints_s,map_waypoints_x,map_waypoints_y);
 		vector<double> next_wp1 = getXY(car_s+60,(2+4*lane_pos),map_waypoints_s,map_waypoints_x,map_waypoints_y);
